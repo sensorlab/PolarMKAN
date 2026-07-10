@@ -1,0 +1,47 @@
+num_iterations: 1 #iterations for each config
+starting_iteration: 0 # start id of iteration
+exp_id: PCA_2D       # id of current run
+logs_dir: logs        # dir for logs
+report_interval: 5    # report interval
+starting_fold: 0
+starting_epoch: 0
+# dataset specification
+dataset:
+  name: Oracle # name in [WiSig, LoRa, Drones]
+  config:
+    file: data_256_62ft.h5     # file path for WiSig
+    k_fold:             # specification for k_fold
+      total_devices: 16
+      ratio: 5
+    modality: iq_const
+    #selected_receivers: !!python/tuple [0,]
+    test_config:
+      #days: !!python/tuple [0,1,2,3]
+      type: validation
+    train_config:
+      #days: !!python/tuple [0,1,2,3]
+      type: train
+      
+# train and test loaders
+train_loader:
+  num_workers: 6
+  batch_size: 50
+  shuffle: true
+
+test_loader:
+  num_workers: 6
+  batch_size: 50
+  shuffle: false
+
+evaluation:
+  clusters_numbers: !!python/tuple [200] # for which numbers of clusters calculate metrics
+
+approach:
+  name: PCA
+  config:
+    features_size: 20
+    num_epochs: 5
+  trainer:
+
+feature_extractor: 
+   name: 

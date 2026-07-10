@@ -1,0 +1,70 @@
+num_iterations: 1     # iterations for each config
+starting_iteration: 0 # start id of iteration
+exp_id: DC_KAN_2D_No_SVD        # id of current run
+logs_dir: logs        # dir for logs
+report_interval: 5    # report interval
+starting_fold: 0
+# dataset specification
+dataset:s
+  name: Oracle # name in [WiSig, LoRa, Drones]
+  config:
+    file: data_256_62ft.h5     # file path for WiSig
+    k_fold:             # specification for k_fold
+      total_devices: 16
+      ratio: 5
+    modality: iq_const
+    #selected_receivers: !!python/tuple [0,]
+    test_config:
+      #days: !!python/tuple [0,1,2,3]
+      type: validation
+    train_config:
+      #days: !!python/tuple [0,1,2,3]
+      type: train
+
+# train and test loaders
+train_loader:
+  num_workers: 10
+  batch_size: 50
+  shuffle: true
+
+test_loader:
+  num_workers: 10
+  batch_size: 50
+  shuffle: false
+
+# specifications for metrics computing
+evaluation:
+  clusters_numbers: !!python/tuple [200,] # for which numbers of clusters calculate metrics
+
+# specifications for approach and trainer parameters
+approach:
+  name: Deep Clustering
+  config:
+    clusters_update_interval: 20
+    n_clusters: 20
+    device: cuda
+    num_epochs: 100
+  trainer:
+    main_optimizer:
+      name: Adam
+      config:
+        lr: 0.001 # ranges are supported
+
+# specifications for feature_extractor
+feature_extractor:
+  name: KANS_Encoder
+  config:
+    input_size: 3600
+    hidden_size: 20
+    svd_init: False
+    n_classes: 20
+    svd_init: False
+
+#feature_extractor:
+#  name: Simple_CNN_2D
+#  config:
+#    input_image_size: !!python/tuple [60,60] 
+#    in_channels: 1
+#    features_size: 20
+#    n_classes: 20
+#    svd_init: False

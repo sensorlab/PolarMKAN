@@ -1,0 +1,68 @@
+num_iterations: 1     # iterations for each config
+starting_iteration: 0 # start id of iteration
+exp_id: AE_KAN_2D_No_SVD        # id of current run
+logs_dir: logs        # dir for logs
+report_interval: 5   # report interval
+
+# dataset specification
+dataset:
+  name: Oracle
+  config:
+    file: data_256_62ft.h5 
+    k_fold: 
+      total_devices: 16
+      ratio: 5
+    modality: iq_const
+    test_config:
+      type: validation
+    train_config:
+      type: train
+
+# train and test loaders
+train_loader:
+  num_workers: 1
+  batch_size: 50
+  shuffle: true
+
+test_loader:
+  num_workers: 1
+  batch_size: 50
+  shuffle: false
+
+# specifications for metrics computing
+evaluation:
+  clusters_numbers: !!python/tuple [200] # for which numbers of clusters calculate metrics
+
+# specifications for approach and trainer parameters
+approach:
+  name: AE
+  config:
+    noise_std: 0.1
+    device: cuda
+    num_epochs: 100
+  trainer:
+    main_optimizer:
+      name: Adam
+      config:
+        lr: 0.001
+
+# specifications for feature_extractor
+# KAN
+
+feature_extractor:
+  name: AE_KAN
+  config:
+    input_size: 3600
+    hidden_size: 20
+    svd_init: False
+
+# CNN
+
+#feature_extractor:
+#  name: AE_CNN_2D
+#  config:
+#    input_signal_w: 60
+#    input_signal_h: 60
+#    in_channels: 1
+#    features_size: 20
+#    svd_init: False
