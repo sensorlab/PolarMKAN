@@ -6,6 +6,7 @@ from sklearn.metrics import (
     adjusted_mutual_info_score, adjusted_rand_score, homogeneity_score, completeness_score
 )
 from sklearn.cluster import KMeans
+from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.decomposition import PCA
 
 
@@ -273,3 +274,103 @@ def get_unsupervised_metrics_features(train_features, test_features, clusters_nu
         all_metrics |= clustering_metrics(train_features, test_features, clusters_num, clusters_num)
 
     return all_metrics
+
+
+# =============================================================================
+# Disentanglement metrics
+# =============================================================================
+
+def compute_dci(latents, factors):
+    """DCI Disentanglement and Completeness (Eastwood & Williams, 2018).
+
+    A gradient-boosted regressor is fitted from the latent coordinates to each
+    ground-truth factor; its feature importances form the importance matrix R.
+    Disentanglement is the importance-weighted mean of the per-latent
+    concentration 1 - H(P_i.) / log K; completeness is the analogous quantity
+    across latents for each factor.
+
+    Args:
+        latents: array (N, d) of learned representations.
+        factors: array (N, k) of ground-truth generative factors.
+
+    Returns:
+        dict with keys "disentanglement" and "completeness" in [0, 1].
+    """
+    latents = np.asarray(latents)
+    factors = np.asarray(factors)
+
+    n_latents = latents.shape[1]
+    n_factors = factors.shape[1]
+
+    importance_matrix = np.zeros((n_latents, n_factors))
+    for j in range(n_factors):
+        model = GradientBoostingRegressor(random_state=0)
+        model.fit(latents, factors[:, j])
+        importance_matrix[:, j] = model.feature_importances_
+
+    eps = 1e-12
+
+    # Disentanglement per latent.
+    latent_importance = importance_matrix.sum(axis=1)
+    disentanglement_per_latent = np.zeros(n_latents)
+    for i in range(n_latents):
+        if latent_importance[i] > eps:
+            p = importance_matrix[i, :] / latent_importance[i]
+            p = p[p > 0]
+            entropy = -np.sum(p * np.log(p))
+            disentanglement_per_latent[i] = (
+                1.0 - entropy / np.log(n_factors) if n_factors > 1 else 1.0
+            )
+
+    # Canonical DCI weighting by total latent importance.
+    total_importance = latent_importance.sum()
+    if total_importance > eps:
+        latent_weights = latent_importance / total_importance
+        disentanglement = float(np.sum(latent_weights * disentanglement_per_latent))
+    else:
+        disentanglement = 0.0
+
+    # Completeness per factor.
+    completeness_per_factor = np.zeros(n_factors)
+    for j in range(n_factors):
+        factor_importance = importance_matrix[:, j].sum()
+        if factor_importance > eps:
+            p = importance_matrix[:, j] / factor_importance
+            p = p[p > 0]
+            entropy = -np.sum(p * np.log(p))
+            completeness_per_factor[j] = (
+                1.0 - entropy / np.log(n_latents) if n_latents > 1 else 1.0
+            )
+
+    return {
+        "disentanglement": disentanglement,
+        "completeness": float(np.mean(completeness_per_factor)),
+    }
+
+
+def reconstruction_mse(model, loader, device):
+    """Mean per-element reconstruction MSE over the full loader."""
+    model.eval()
+
+    total_squared_error = 0.0
+    total_elements = 0
+
+    with torch.no_grad():
+        for batch, _ in loader:
+            batch = batch.to(device)
+            _, rec = model(batch)
+
+            b = batch.shape[0]
+            rec_flat = rec.reshape(b, -1)
+            batch_flat = batch.reshape(b, -1)
+
+            total_squared_error += torch.sum((rec_flat - batch_flat) ** 2).item()
+            total_elements += batch_flat.numel()
+
+    return total_squared_error / total_elements
+
+
+def mean_ci95(values):
+    """Mean and 95% CI half-width of a 1-D collection of values."""
+    arr = np.asarray(values, dtype=float)
+    return arr.mean(), 1.96 * arr.std() / np.sqrt(len(arr))

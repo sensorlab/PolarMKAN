@@ -1,6 +1,6 @@
 import h5py
 import numpy as np
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 import torch
 import pickle
 import pywt
@@ -442,3 +442,245 @@ class WiSig_Dataset_SingleDay(Dataset):
             #sample = np.stack([coefs.real, coefs.imag], axis=0)
             #sample = transforms.Resize(size=resize_to)(torch.tensor(sample, dtype=torch.float32))
         return (sample, tx, idx) if self.return_indices else (sample, tx)
+
+
+# =============================================================================
+# Synthetic RF-fingerprinting benchmark
+# -----------------------------------------------------------------------------
+# Controlled dataset with known ground-truth device impairments, used for the
+# DCI disentanglement study and the synthetic UED experiment. Devices differ by
+# a carrier-frequency offset and an amplitude deviation (the two scored
+# factors), plus I/Q imbalance acting as unscored structured nuisance.
+# =============================================================================
+
+# Scored ground-truth factors (order defines the columns of `factors`).
+SYNTHETIC_FEATURE_NAMES = ("cfo", "ampl")
+
+
+def qam16_burst(n_symbols, sps, symbol_sequence):
+    """Generate a 16-QAM burst from a fixed symbol sequence.
+
+    Args:
+        n_symbols:       number of symbols to generate.
+        sps:             samples per symbol.
+        symbol_sequence: pre-generated array of complex symbols (cycled if short).
+    """
+    symbol_idx = np.arange(n_symbols) % len(symbol_sequence)
+    symbols = symbol_sequence[symbol_idx]
+
+    # Root-raised-cosine pulse shaping.
+    span, beta = 8, 0.35
+    t = np.arange(-span * sps / 2, span * sps / 2 + 1) / sps
+    with np.errstate(divide="ignore", invalid="ignore"):
+        num = np.sin(np.pi * t * (1 - beta)) + 4 * beta * t * np.cos(np.pi * t * (1 + beta))
+        den = np.pi * t * (1 - (4 * beta * t) ** 2)
+        h = np.where(den == 0, 1 - beta + 4 * beta / np.pi, num / den)
+        h[t == 0] = 1 - beta + 4 * beta / np.pi
+        t_edge = 1 / (4 * beta)
+        idx = np.isclose(np.abs(t), t_edge)
+        h[idx] = (beta / np.sqrt(2)) * (
+            (1 + 2 / np.pi) * np.sin(np.pi / (4 * beta))
+            + (1 - 2 / np.pi) * np.cos(np.pi / (4 * beta))
+        )
+    h /= np.sqrt(np.sum(h ** 2))
+
+    upsampled = np.zeros(n_symbols * sps, dtype=complex)
+    upsampled[::sps] = symbols
+    return np.convolve(upsampled, h, mode="same")
+
+
+def sample_device_features(rng):
+    """Draw a fresh set of per-device hardware impairments."""
+    return {
+        "iq_gain_db":   float(rng.normal(0, 0.3)),
+        "iq_phase_rad": float(rng.normal(0, 0.03)),
+        "cfo":          float(rng.normal(0, 2e-3)),
+        "ampl":         float(rng.normal(0, 0.07)),
+    }
+
+
+def apply_impairments(x, f, iq_imb=False):
+    """Apply device-specific impairments: CFO, amplitude and I/Q imbalance."""
+    n = np.arange(len(x))
+
+    # Carrier-frequency offset and amplitude scaling.
+    x = x * np.exp(1j * 2 * np.pi * f["cfo"] * n)
+    x = (1 + f["ampl"]) * x
+
+    if iq_imb:
+        # I/Q imbalance (gain + phase).
+        g = 10 ** (f["iq_gain_db"] / 20)          # dB -> linear amplitude ratio
+        phi = f["iq_phase_rad"]
+        alpha = (1 + g * np.exp(-1j * phi)) / 2
+        beta = (1 - g * np.exp(1j * phi)) / 2
+        x = alpha * x + beta * np.conj(x)
+
+    return x
+
+
+def add_awgn(x, snr_db, rng):
+    """Add complex Additive White Gaussian Noise at the given SNR."""
+    sig_power = np.mean(np.abs(x) ** 2)
+    noise_power = sig_power / (10 ** (snr_db / 10))
+    noise = np.sqrt(noise_power / 2) * (rng.normal(size=len(x)) + 1j * rng.normal(size=len(x)))
+    return x + noise
+
+
+class RFFingerprintDataset(Dataset):
+    """Synthetic RF-fingerprinting dataset built from a fixed 16-QAM sequence.
+
+    ``full_range=True``  -> all four quadrants, real levels [-3, -1, 1, 3]
+                            (full phase range, matches WiSig).
+    ``full_range=False`` -> left half-plane only, real levels [-4, -3, -2, -1]
+                            (confined proof-of-concept control).
+
+    Returns ``(iq, factors)``:
+        iq      : FloatTensor (2, burst_len), either [I, Q] or, with
+                  ``polar=True``, [magnitude / 1.5, phase / 2pi].
+        factors : FloatTensor with the values of SYNTHETIC_FEATURE_NAMES.
+    """
+
+    feature_names = SYNTHETIC_FEATURE_NAMES
+
+    def __init__(
+        self,
+        n_devices=10,
+        n_bursts_per_device=200,
+        burst_len=1024,
+        sps=4,
+        snr_range=(10, 30),
+        seed=0,
+        polar=False,
+        iq_imb=False,
+        full_range=False,
+        cfo_compensate=False,
+    ):
+        self.burst_len = burst_len
+        self.return_indices = False
+        self.polar = polar
+        self.iq_imb = iq_imb
+        self.cfo_compensate = cfo_compensate
+        rng = np.random.default_rng(seed)
+
+        # Fixed 16-QAM symbol sequence shared by all samples.
+        n_sym = burst_len // sps + 16
+        if full_range:
+            real_levels = np.array([-3, -1, 1, 3])
+        else:
+            real_levels = np.array([-4, -3, -2, -1])
+        imag_levels = np.array([-3, -1, 1, 3])
+        bits = rng.integers(0, 16, size=n_sym)
+        symbol_sequence = np.zeros(n_sym, dtype=complex)
+        for i, bit_val in enumerate(bits):
+            symbol_sequence[i] = real_levels[bit_val // 4] + 1j * imag_levels[bit_val % 4]
+        symbol_sequence /= np.sqrt(np.mean(np.abs(symbol_sequence) ** 2))   # unit power
+
+        # One impairment vector per device.
+        self.device_features = [
+            sample_device_features(np.random.default_rng(seed + 1000 + d))
+            for d in range(n_devices)
+        ]
+
+        n_total = n_devices * n_bursts_per_device
+        self.iq = np.zeros((n_total, 2, burst_len), dtype=np.float32)
+        self.features = np.zeros((n_total, len(SYNTHETIC_FEATURE_NAMES)), dtype=np.float32)
+        self.device_id = np.zeros(n_total, dtype=np.int64)
+        self.snr = np.zeros(n_total, dtype=np.float32)
+
+        k = 0
+        for d, feat in enumerate(self.device_features):
+            feat_vec = np.array([feat[name] for name in SYNTHETIC_FEATURE_NAMES], dtype=np.float32)
+            for _ in range(n_bursts_per_device):
+                clean = qam16_burst(burst_len // sps + 16, sps, symbol_sequence)
+                tx = apply_impairments(clean, feat, self.iq_imb)
+                snr_db = float(rng.uniform(*snr_range))
+                rx = add_awgn(tx, snr_db, rng)[:burst_len]
+
+                self.iq[k, 0, :] = np.real(rx)
+                self.iq[k, 1, :] = np.imag(rx)
+                self.features[k] = feat_vec
+                self.device_id[k] = d
+                self.snr[k] = snr_db
+                k += 1
+
+    def __len__(self):
+        return self.iq.shape[0]
+
+    def __getitem__(self, idx):
+        iq = torch.from_numpy(self.iq[idx])
+        i_comp, q_comp = iq[0], iq[1]
+
+        if self.cfo_compensate:
+            # Blind per-burst bulk-CFO removal: estimate mean phase slope and de-rotate.
+            xc = torch.complex(i_comp.float(), q_comp.float())
+            n_ = torch.arange(xc.shape[-1], dtype=torch.float32)
+            cfo_est = torch.mean(torch.angle(xc[1:] * torch.conj(xc[:-1]))) / (2 * np.pi)
+            ramp = -2 * np.pi * cfo_est * n_
+            xc = xc * torch.complex(torch.cos(ramp), torch.sin(ramp))
+            i_comp, q_comp = xc.real, xc.imag
+            iq = torch.stack([i_comp, q_comp])
+
+        # Cartesian -> polar (magnitude, phase in [0, 2pi)).
+        magnitude = torch.sqrt(i_comp ** 2 + q_comp ** 2)
+        phase = torch.atan2(q_comp, i_comp)
+        phase = (phase + 2 * np.pi) % (2 * np.pi)
+
+        if self.polar:
+            # Scale roughly into [0, 1] for both channels.
+            iq = torch.stack([magnitude / 1.5, phase / (2 * np.pi)])
+
+        factors = torch.from_numpy(self.features[idx])
+        if self.return_indices:
+            return iq, factors, idx
+        return iq, factors
+
+
+class SyntheticUEDDataset(RFFingerprintDataset):
+    """Device-labelled view of the synthetic data for the UED classification task."""
+
+    def __getitem__(self, idx):
+        out = super().__getitem__(idx)
+        iq = out[0]
+        dev = int(self.device_id[idx])
+        return (iq, dev, idx) if self.return_indices else (iq, dev)
+
+
+def get_synthetic_loaders(
+    iq_imb,
+    polar,
+    full_range=True,
+    cfo_compensate=False,
+    batch_size=32,
+    n_train_devices=1000,
+    n_eval_devices=100,
+    burst_len=256,
+    sps=4,
+    snr_range=(10, 30),
+    train_seed=42,
+    eval_seed=41,
+):
+    """Build the synthetic train / held-out evaluation loaders.
+
+    Train and evaluation sets use different device draws (different seeds), so
+    the evaluation set is genuinely held out.
+
+    Returns:
+        (trainloader, valloader). The underlying datasets are reachable as
+        ``trainloader.dataset`` and ``valloader.dataset``.
+    """
+    common = dict(
+        n_bursts_per_device=1,
+        burst_len=burst_len,
+        sps=sps,
+        snr_range=snr_range,
+        polar=polar,
+        iq_imb=iq_imb,
+        full_range=full_range,
+        cfo_compensate=cfo_compensate,
+    )
+    ds_train = RFFingerprintDataset(n_devices=n_train_devices, seed=train_seed, **common)
+    ds_test = RFFingerprintDataset(n_devices=n_eval_devices, seed=eval_seed, **common)
+
+    trainloader = DataLoader(ds_train, batch_size=batch_size, shuffle=False)
+    valloader = DataLoader(ds_test, batch_size=batch_size, shuffle=False)
+    return trainloader, valloader
