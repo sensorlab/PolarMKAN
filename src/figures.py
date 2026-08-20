@@ -3,7 +3,12 @@
     plot_tradeoff_scatter -> tradeoff_scatter_heldout.pdf
     plot_phase_wrap       -> phase_wrap_consistency.pdf
 
-Both write a PDF for LaTeX plus a PNG preview, and return the Matplotlib figure.
+Both write a PDF for LaTeX plus a PNG preview.
+
+With ``show=True`` (the default) the figure is displayed and nothing is
+returned, so calling one of these as the last line of a notebook cell renders it
+exactly once. Pass ``show=False`` to get the Matplotlib figure back instead,
+for further styling or for use outside a notebook.
 """
 
 import numpy as np
@@ -134,6 +139,7 @@ def plot_tradeoff_scatter(dci_csv, ued_csv,
         fig.savefig(out_png, dpi=250, bbox_inches="tight")
     if show:
         plt.show()
+        return None            # returning the figure too would render it twice
     return fig
 
 
@@ -174,4 +180,5 @@ def plot_phase_wrap(means, ci95, labels=None,
         fig.savefig(out_png, dpi=250, bbox_inches="tight")
     if show:
         plt.show()
+        return None            # returning the figure too would render it twice
     return fig
