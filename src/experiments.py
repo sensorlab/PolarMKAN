@@ -4,11 +4,11 @@ Each public ``run_*`` function corresponds to one experiment in the paper and
 returns its results as pandas objects, so the accompanying notebook only has to
 call them and display the output.
 
-    run_dci_benchmark        -> Table I  (DCI Disentanglement / Completeness)
-    run_synthetic_ued        -> Table II, Synthetic columns
-    run_wisig_ued            -> Table II, SingleDay and ManyTx columns
-    model_size_table         -> parameter counts and forward-pass timing
-    run_capacity_sweep       -> grid-size sweep for Polar MKAN vs KAN
+    run_dci_benchmark        -> Table II  (DCI Disentanglement / Completeness)
+    run_synthetic_ued        -> Table III, Synthetic columns
+    run_wisig_ued            -> Table III, SingleDay and ManyTx columns
+    model_size_table         -> parameter counts and timing (supplementary)
+    run_capacity_sweep       -> grid-size sweep for Polar MKAN vs KAN (supplementary)
     run_perturbation_analysis-> multi-seed phase/amplitude response
     run_guarantee_check      -> monotonicity vs circularity probes
     run_branch_cut_validation-> sign consistency vs phase-wrap fraction
@@ -101,7 +101,7 @@ def seed_everything(s):
 
 
 # =============================================================================
-# Experiment 1 - DCI disentanglement on the synthetic benchmark (Table I)
+# Experiment 1 - DCI disentanglement on the synthetic benchmark (Table II)
 # =============================================================================
 
 def evaluate_architecture(config, iq_imb=True, lr=0.01, n_runs=10, n_epochs=120,
@@ -175,7 +175,7 @@ def summarise_dci(all_results):
 
 
 # =============================================================================
-# Experiment 2 - synthetic UED classification (Table II, Synthetic)
+# Experiment 2 - synthetic UED classification (Table III, Synthetic)
 # =============================================================================
 
 def build_synth_ued(polar, cfo_compensate, n_devices=200, bursts=20,
@@ -288,7 +288,7 @@ def run_synthetic_ued(seeds=(0, 1, 2), n_epochs=120, archs=None, save=True, outd
 
 
 # =============================================================================
-# Experiment 3 - WiSig UED (Table II, SingleDay and ManyTx)
+# Experiment 3 - WiSig UED (Table III, SingleDay and ManyTx)
 # =============================================================================
 
 def build_wisig_config(subset, arch, cfo_compensate, num_epochs=120, lr=0.001,
@@ -387,11 +387,13 @@ def run_wisig_ued(subset="SingleDay", n_epochs=120, archs=None, save=True, outdi
 
 
 # =============================================================================
-# Model size and compute
+# Model size and compute (supplementary - not reported in the letter)
 # =============================================================================
 
 def model_size_table(device="cpu", batch_size=256, reps=50, latex=False):
     """Parameter counts and forward-pass timing for the six feature extractors.
+
+    Supplementary: not reported in the letter.
 
     "Active" counts scalars with non-zero gradient support over a large random
     batch, so only structurally pruned edges (Polar MKAN's block masks) are
@@ -446,7 +448,7 @@ def model_size_table(device="cpu", batch_size=256, reps=50, latex=False):
 
 
 # =============================================================================
-# Capacity sweep
+# Capacity sweep (supplementary - not reported in the letter)
 # =============================================================================
 
 _SWEEP_SPEC = {
@@ -461,7 +463,11 @@ def run_capacity_sweep(grid_sizes=(16, 32), archs=("Polar MKAN", "KAN"),
                        subset="ManySig", wisig_epochs=120, dci_runs=1,
                        dci_epochs=120, dci_lr=0.01, full_range=True,
                        cfo_compensate=False, device=DEVICE):
-    """Vary the KAN grid size and report DCI together with WiSig UED."""
+    """Vary the KAN grid size and report DCI together with WiSig UED.
+
+    Supplementary: not reported in the letter. Checks whether the disentanglement
+    gap is a capacity artefact rather than an effect of the construction.
+    """
     try:
         from tqdm.auto import tqdm
     except ImportError:                       # graceful fallback if tqdm missing

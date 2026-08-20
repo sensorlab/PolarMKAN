@@ -104,14 +104,18 @@ calling into `src/experiments.py`.
 
 | Notebook section | Produces | Function |
 | --- | --- | --- |
-| 6 | Table I — DCI Disentanglement / Completeness | `run_dci_benchmark` |
-| 7 | Table II, Synthetic columns | `run_synthetic_ued` |
-| 8 | Table II, SingleDay and ManyTx columns | `run_wisig_ued` |
-| 9 | Parameter counts and forward-pass timing | `model_size_table` |
-| 10 | Grid-size capacity sweep | `run_capacity_sweep` |
+| 6 | Table II — DCI Disentanglement / Completeness | `run_dci_benchmark` |
+| 7 | Table III, Synthetic columns | `run_synthetic_ued` |
+| 8 | Table III, SingleDay and ManyTx columns | `run_wisig_ued` |
+| 9 | Parameter counts and forward-pass timing *(supplementary)* | `model_size_table` |
+| 10 | Grid-size capacity sweep *(supplementary)* | `run_capacity_sweep` |
 | 11 | Multi-seed perturbation response, guarantee check | `run_perturbation_analysis`, `run_guarantee_check` |
 | 12 | Sign consistency vs. phase-wrap fraction | `run_branch_cut_validation` |
-| 13 | Fig. 4 and Fig. 5 | `plot_phase_wrap`, `plot_tradeoff_scatter` |
+| 13 | Fig. 3 and Fig. 4 | `plot_phase_wrap`, `plot_tradeoff_scatter` |
+
+Sections 9 and 10 are marked supplementary because the letter does not report
+them. They are kept as supporting evidence — the capacity sweep in particular
+addresses whether the disentanglement gap could be a capacity artefact.
 
 The letter's settings are `N_RUNS = 10`, `N_EPOCHS = 120`. Both are slow on CPU
 — lower them in the setup cell for a first pass.
@@ -122,12 +126,12 @@ Each of these was matched value-by-value against the letter:
 
 | Table | File |
 | --- | --- |
-| Table I | `results/synthetic_dci_20260812_105624.csv` (+ `_perrun` companion) |
-| Table II, Synthetic | `results/synthetic_ued_20260806_144410.csv` (+ `_perseed` companion) |
-| Table II, SingleDay | `results/wisig_ued_20260804_151644.csv` |
-| Table II, ManyTx | `results/ManyTx/wisig_ued_20260730_002754.csv` |
+| Table II | `results/synthetic_dci_20260812_105624.csv` (+ `_perrun` companion) |
+| Table III, Synthetic | `results/synthetic_ued_20260806_144410.csv` (+ `_perseed` companion) |
+| Table III, SingleDay | `results/wisig_ued_20260804_151644.csv` |
+| Table III, ManyTx | `results/ManyTx/wisig_ued_20260730_002754.csv` |
 
-Section 13 redraws Fig. 5 from the first two files, so the figure can be
+Section 13 redraws Fig. 4 from the first two files, so the figure can be
 regenerated without retraining anything. Point the two paths at your own run to
 redraw it from new results.
 

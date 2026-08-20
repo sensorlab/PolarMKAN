@@ -59,7 +59,7 @@ def plot_tradeoff_scatter(dci_csv, ued_csv,
                           out_pdf="tradeoff_scatter_heldout.pdf",
                           out_png="tradeoff_scatter_heldout_preview.png",
                           show=True):
-    """Interpretability vs. detection trade-off (letter Fig. 5).
+    """Interpretability vs. detection trade-off (letter Fig. 4).
 
     Both axes come from the synthetic benchmark, so the two coordinates of each
     point belong to one coherent experiment:
@@ -141,7 +141,7 @@ def plot_phase_wrap(means, ci95, labels=None,
                     out_pdf="phase_wrap_consistency.pdf",
                     out_png="phase_wrap_consistency.png",
                     show=True):
-    """Sign consistency of the phase features vs. wrap fraction (letter Fig. 4).
+    """Sign consistency of the phase features vs. wrap fraction (letter Fig. 3).
 
     Args:
         means: array (2, n_bins) - mean consistency for F_phi1 and F_phi2.
