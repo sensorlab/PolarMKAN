@@ -80,6 +80,12 @@ the build matching your machine from
 CUDA or ROCm version. `tqdm` is optional; the capacity sweep uses it for progress
 bars and falls back to plain iteration without it.
 
+The notebook's first code cell is a lazy dependency check: it installs only
+what is missing, into the kernel's own environment via `sys.executable -m pip`
+rather than a bare `!pip`, which often reaches a different environment than the
+kernel. PyTorch is reported but never installed automatically, since the right
+build depends on your CUDA / ROCm version.
+
 Launch notebooks **from the repository root** so Python can find `src/`.
 
 ### Datasets
