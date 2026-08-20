@@ -12,7 +12,7 @@ from sklearn.decomposition import PCA
 from matplotlib import pyplot as plt
 from torchvision import transforms
 
-from src.datasets import OracleDataset, WiSig_Dataset_ManySig, LoRaDataset, WiSig_Dataset_ManyTx
+from src.datasets import OracleDataset, WiSig_Dataset_ManySig, LoRaDataset, WiSig_Dataset_ManyTx, WiSig_Dataset_SingleDay
 from src.architectures import side_networks
 from src.architectures.features_extractors.cnn import Simple_CNN_1D, AE_CNN_1D, AE_CNN_2D, Simple_CNN_2D
 from src.architectures.features_extractors.transformers import TS_Transformer
@@ -42,7 +42,7 @@ random.seed(42)
 torch.backends.cudnn.enabled=False
 torch.backends.cudnn.deterministic=True
 
-DATASETS = {"WiSig_ManyTx": WiSig_Dataset_ManyTx, 'WiSig_ManySig': WiSig_Dataset_ManySig  ,"LoRa": LoRaDataset, "Oracle": OracleDataset}
+DATASETS = {"WiSig_ManyTx": WiSig_Dataset_ManyTx, 'WiSig_ManySig': WiSig_Dataset_ManySig, 'WiSig_SingleDay': WiSig_Dataset_SingleDay ,"LoRa": LoRaDataset, "Oracle": OracleDataset}
 
 FEATURES_EXCTRACTORS = {
     "Simple_CNN_1D": Simple_CNN_1D,
