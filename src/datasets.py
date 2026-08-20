@@ -4,6 +4,7 @@ from torch.utils.data import Dataset, DataLoader
 import torch
 import pickle
 import pywt
+from scipy import signal
 from torchvision import transforms
 import torchvision
 import glob
