@@ -169,3 +169,8 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Local dataset dumps, archives and training checkpoints (kept out of git)
+*.pkl
+*.zip
+ckpt/
