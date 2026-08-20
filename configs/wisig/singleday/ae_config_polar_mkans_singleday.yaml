@@ -1,0 +1,60 @@
+num_iterations: 1     # iterations for each config
+starting_iteration: 0 # start id of iteration
+exp_id: AE_MKAN_Polar_SingleDay       # id of current run
+logs_dir: logs        # dir for logs
+report_interval: 10   # report interval
+
+# dataset specification
+
+dataset:
+  name: WiSig_SingleDay
+  config:
+    file:  SingleDay.pkl
+    polars: True
+    k_fold: 
+      total_devices: 28
+      ratio: 28
+    selected_receivers: !!python/tuple [0,]
+    test_config:
+      type: validation
+    train_config:
+      type: train
+
+# train and test loaders
+train_loader:
+  num_workers: 10
+  batch_size: 50
+  shuffle: true
+
+test_loader:
+  num_workers: 10
+  batch_size: 50
+  shuffle: false
+
+# specifications for metrics computing
+evaluation:
+  clusters_numbers: !!python/tuple [300] # tuned for SingleDay (28 tx x 800 sig); re-tune if needed
+
+# specifications for approach and trainer parameters
+approach:
+  name: AE
+  config:
+    noise_std: 0.01
+    device: cpu
+    num_epochs: 100
+  trainer:
+    main_optimizer:
+      name: Adam
+      config:
+        lr: 0.001
+
+# specifications for feature_extractor
+# KAN
+
+feature_extractor:
+  name: AE_MKAN
+  config:
+    input_size: 512
+    hidden_size: 3
+    polars: True
+    monotonic: True
